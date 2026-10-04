@@ -1,0 +1,264 @@
+\input texinfo   @c -*-texinfo-*-
+@c %**start of header
+@setfilename word-extract.info
+@settitle word-extract Manual
+@documentencoding UTF-8
+@documentlanguage en
+@c %**end of header
+
+@dircategory Emacs misc features
+@direntry
+* word-extract: (word-extract). Retrieve the prose context around a word over a date range.
+@end direntry
+
+@copying
+This manual is for word-extract, which finds a word wherever it appears in a
+set of LaTeX files and copies the surrounding prose so you can read it in
+context.
+
+Copyright @copyright{} 2026 Blaine Mooers.
+
+@quotation
+Permission is granted to copy, distribute and/or modify this document under
+the terms of the GNU General Public License, Version 3 or any later version
+published by the Free Software Foundation.
+@end quotation
+@end copying
+
+@titlepage
+@title word-extract
+@subtitle Retrieve the prose context around a word over a date range
+@author Blaine Mooers
+@page
+@vskip 0pt plus 1filll
+@insertcopying
+@end titlepage
+
+@contents
+
+@ifnottex
+@node Top
+@top word-extract
+
+@insertcopying
+@end ifnottex
+
+@menu
+* Introduction::        What the package does and the problem it solves.
+* Installation::        Putting the package on your load path.
+* Filename dates::       How the date commands read dates from file names.
+* Mentions and context:: What is matched and how much context is returned.
+* Commands::            The interactive entry points.
+* The results buffer::  Working with the collected mentions.
+* Org output::          Writing the mentions into an Org subtree.
+* Customization::       Variables you can set.
+* Finding book ideas::  A worked workflow.
+* License::
+* Index::
+@end menu
+
+@node Introduction
+@chapter Introduction
+
+@code{word-extract} finds a word wherever it appears in a set of LaTeX files
+and copies the surrounding prose so you can read it in context.  It is the
+companion of @code{index-extract} for the common case in which you did not tag
+the passage with an @code{\index} key.  It shares that package's design, which
+assumes one document file per day, the files organized into monthly subfolders,
+and commands that choose files either by picking folders or by a date range read
+from the file names.
+
+The motivating use is to find every place you mentioned a word across a stretch
+of days.  For example you can find every entry in September that mentions
+@code{book}, so you can recover the book ideas you have not yet turned into
+projects.
+
+@node Installation
+@chapter Installation
+
+Put @file{word-extract.el} on your @code{load-path} and require it.
+
+@example
+(add-to-list 'load-path "/path/to/extract-word-el")
+(require 'word-extract)
+
+(setq word-extract-default-directory "~/2026words/Content/"
+      word-extract-root-directory    "~/2026words/Content/"
+      word-extract-default-days      7)
+@end example
+
+The repository ships an Info manual.  After @code{make info} you can install
+@file{word-extract.info} into your Info tree, or read it in place.
+
+@node Filename dates
+@chapter Filename dates
+
+The date commands read the date out of each file's name.  Two styles are
+recognised out of the box.  An ISO date such as @code{2026-09-26} is matched by
+@code{word-extract-date-regexp}.  A day-month-name-year date such as
+@code{26September2026} is matched by @code{word-extract-date-named-regexp}.
+
+Full month names and the common three-letter abbreviations both work, and the
+month name is matched without regard to case.  If your file names follow some
+other scheme, set @code{word-extract-date-named-regexp} so that its group one is
+the day, group two the month name, and group three the year.  Failing that, set
+@code{word-extract-date-regexp} to a numeric pattern whose groups are the year,
+month, and day.
+
+@node Mentions and context
+@chapter Mentions and context
+
+A mention is an occurrence of a word in a prose line.  By default a whole word
+is matched, so @code{book} matches @code{book} and @code{Book} but not
+@code{notebook} or @code{books}.  Set @code{word-extract-match-style} to
+@code{substring} to match anywhere, or to @code{regexp} to treat the word as an
+Emacs regexp.
+
+A match that lands on a structural line, that is a line beginning with a LaTeX
+command or a comment such as a heading, an @code{\index} entry, or a
+@code{\begin}, is skipped, so the retrieved context stays prose.  See
+@code{word-extract-boundary-regexp}.  The context is the paragraph containing the
+mention, bounded by blank lines and structural lines.  Set
+@code{word-extract-context-lines} to an integer to take that many lines on each
+side instead.  When several mentions fall in one context, they collapse to a
+single entry whose words are merged.
+
+@node Commands
+@chapter Commands
+
+@table @kbd
+@item M-x word-extract
+Pick the files to scan, which may be several whole monthly subfolders and
+individual files, then the word or words, and collect each mention with its
+context into the results buffer.
+
+@item M-x word-extract-last-days
+Scan every dated file from the last @var{N} days, default seven.  Files are
+found by searching your log root recursively and keeping those whose name holds
+a date within range (@pxref{Filename dates}), so a week that spans two months is
+handled for you.  With a prefix argument the result is written to an Org file
+instead of the buffer.
+
+@item M-x word-extract-range
+Like @code{word-extract-last-days} but you give an explicit start and end date.
+With a prefix argument the result goes to an Org file.
+
+@item M-x word-extract-to-org
+Pick files and words, then append the mentions to an Org file as one subtree.
+
+@item M-x word-extract-again-words
+Run again with the same files but new words.
+
+@item M-x word-extract-again-files
+Run again with the same words but a new file selection.
+@end table
+
+@node The results buffer
+@chapter The results buffer
+
+The mentions land in the @code{*word-extract*} buffer, each under a LaTeX
+comment line that records the source file, the line number, the matched word or
+words, and the section heading.  These key bindings are active there.
+
+@table @kbd
+@item C-c C-s
+Save the buffer to a file.
+@item C-c C-w
+Copy just the context passages, without the label lines, to the kill ring.
+@item C-c C-o
+Write these same results to an Org file as a subtree.
+@item C-c C-k
+Run again with the same files but new words.
+@item C-c C-f
+Run again with the same words but a new file selection.
+@end table
+
+@node Org output
+@chapter Org output
+
+The Org commands append one subtree per run.  The top heading carries
+@code{:WORDS:}, @code{:FILES:}, @code{:MENTIONS:}, and @code{:GENERATED:}
+properties.  Each child heading is one mention and carries @code{:SOURCE:},
+@code{:LINE:}, @code{:WORDS:}, and @code{:DATE:} properties, with the context
+passage as its body.
+
+@node Customization
+@chapter Customization
+
+@vtable @code
+@item word-extract-default-directory
+Directory where the file prompts start.
+
+@item word-extract-root-directory
+Root folder the date commands search recursively.
+
+@item word-extract-default-days
+Default number of days for @code{word-extract-last-days}.
+
+@item word-extract-file-glob
+Shell wildcard used when adding a whole directory.  The default is
+@code{*.tex}.
+
+@item word-extract-date-regexp
+Regexp matching an ISO date in a file name.
+
+@item word-extract-date-named-regexp
+Regexp matching a day-month-name-year date in a file name.
+
+@item word-extract-match-style
+@code{word}, @code{substring}, or @code{regexp}.
+
+@item word-extract-case-fold
+If non-nil, word matching ignores case.
+
+@item word-extract-include-heading
+If non-nil, label each mention with its nearest preceding section heading.
+
+@item word-extract-context-lines
+Nil for the containing paragraph, or an integer for that many lines each side.
+
+@item word-extract-boundary-regexp
+Lines matching this regexp are structural and bound a context paragraph.
+
+@item word-extract-heading-regexp
+Regexp that matches a sectioning command.
+
+@item word-extract-result-buffer
+Name of the buffer that collects the mentions.
+
+@item word-extract-result-major-mode
+Major mode for the results buffer, turned on with its hooks suppressed.
+
+@item word-extract-org-file
+Default Org file for the Org-output commands.
+
+@item word-extract-sort-files
+If non-nil, scan files in sorted order, so dated names come out chronological.
+@end vtable
+
+@node Finding book ideas
+@chapter Finding book ideas
+
+This is the workflow the package was written for.  You suspect you described
+several book ideas across the month but never tagged them.  You run @kbd{M-x
+word-extract-range}, give the start and end of September, and the word
+@code{book}.  The package searches the log root, keeps the dated files in range
+even when they fall in two monthly subfolders, finds every prose mention of
+@code{book}, skips the headings and @code{\index} entries, and collects each
+mention with its paragraph of context in date order.  Press @kbd{C-c C-w} to
+copy the passages, or run the command with a prefix argument to drop them into
+an Org file where you can promote the promising ideas into projects.
+
+@node License
+@chapter License
+
+word-extract is free software, released under the GNU General Public License
+version 3 or later.  See the file @file{LICENSE} in the distribution for the
+full text.
+
+@node Index
+@unnumbered Index
+
+@printindex cp
+
+@bye
