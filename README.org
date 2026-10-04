@@ -1,0 +1,152 @@
+#+TITLE: word-extract
+#+AUTHOR: Blaine Mooers
+#+OPTIONS: toc:nil num:nil
+#+LaTeX_HEADER: \usepackage[margin=0.5in]{geometry}
+
+Find a word wherever it appears in a set of LaTeX files and retrieve the
+surrounding prose, so you can read it in context. This is the companion of
+=index-extract= for the situation where you did not tag the passage with an
+=\index= key.
+
+* What it does
+
+Sometimes you mention an idea many times without ever tagging it. =word-extract=
+finds every prose mention of a word across the files you choose, or across a
+date range, and copies the surrounding paragraph so you can recover the
+context. The motivating use is finding every entry in September that mentions
+=book=, so you can recover the book ideas you have not yet turned into projects.
+
+* Installation
+
+Put =word-extract.el= on your =load-path= and require it.
+
+#+begin_src emacs-lisp
+(add-to-list 'load-path "/path/to/extract-word-el")
+(require 'word-extract)
+
+(setq word-extract-default-directory "~/2026words/Content/"
+      word-extract-root-directory    "~/2026words/Content/"
+      word-extract-default-days      7)
+#+end_src
+
+The repository ships an Info manual. After =make info= you can install
+=word-extract.info= into your Info tree, or read it in place.
+
+* Commands
+
+#+CAPTION: The interactive entry points of word-extract.
+#+ATTR_LATEX: :booktabs t :center t
+| Command                    | What it does                                                        |
+|----------------------------+---------------------------------------------------------------------|
+| =word-extract=             | Pick files and words, then collect each mention with its context.   |
+| =word-extract-last-days=   | Scan the dated files of the last N days for the words.              |
+| =word-extract-range=       | Scan the dated files whose filename date is in an explicit range.   |
+| =word-extract-to-org=      | Pick files and words, then append the mentions to an Org subtree.   |
+| =word-extract-again-words= | Run again with the same files but new words.                        |
+| =word-extract-again-files= | Run again with the same words but a new file selection.             |
+
+=word-extract-last-days= and =word-extract-range= write to the results buffer by
+default. Give either one a prefix argument (=C-u=) to write the mentions to an
+Org file instead.
+
+* Filename dates
+
+The date commands read the date out of each file's name. Two styles are
+recognized out of the box.
+
+#+CAPTION: Recognized filename date styles.
+#+ATTR_LATEX: :booktabs t :center t
+| Style            | Example               | Variable                         |
+|------------------+-----------------------+----------------------------------|
+| ISO              | =2026-09-26.tex=      | =word-extract-date-regexp=       |
+| DayMonthNameYear | =26September2026.tex= | =word-extract-date-named-regexp= |
+
+Full month names and the common three-letter abbreviations both work, and the
+month name is matched without regard to case.
+
+* What counts as a mention and its context
+
+A mention is an occurrence of a word in a prose line. By default a whole word is
+matched, so =book= matches =book= and =Book= but not =notebook= or =books=. Set
+=word-extract-match-style= to =substring= to match anywhere, or to =regexp= to
+treat the word as an Emacs regexp.
+
+A match that lands on a structural line, that is a line beginning with a LaTeX
+command or a comment such as a heading, an =\index= entry, or a =\begin=, is
+skipped, so the retrieved context stays prose. The context is the paragraph
+containing the mention, bounded by blank lines and structural lines. Set
+=word-extract-context-lines= to an integer to take that many lines on each side
+instead. Several mentions in one paragraph collapse to a single entry.
+
+* The results buffer
+
+The mentions land in the =*word-extract*= buffer. These key bindings are active
+there.
+
+#+CAPTION: Key bindings in the results buffer.
+#+ATTR_LATEX: :booktabs t :center t
+| Key       | Action                                                      |
+|-----------+-------------------------------------------------------------|
+| =C-c C-s= | Save the buffer to a file.                                  |
+| =C-c C-w= | Copy just the context passages, without the label lines.    |
+| =C-c C-o= | Write these results to an Org file as a subtree.            |
+| =C-c C-k= | Run again with the same files but new words.                |
+| =C-c C-f= | Run again with the same words but a new file selection.     |
+
+* Customization
+
+#+CAPTION: The variables you are most likely to set.
+#+ATTR_LATEX: :booktabs t :center t
+| Variable                        | Meaning                                                   |
+|---------------------------------+-----------------------------------------------------------|
+| =word-extract-default-directory= | Where the file prompts start.                            |
+| =word-extract-root-directory=   | Root the date commands search recursively.                |
+| =word-extract-default-days=     | Default window for =word-extract-last-days=.              |
+| =word-extract-match-style=      | =word=, =substring=, or =regexp=.                         |
+| =word-extract-case-fold=        | Ignore case when matching, on by default.                 |
+| =word-extract-context-lines=    | Nil for the paragraph, or an integer for N lines each side. |
+| =word-extract-boundary-regexp=  | Lines that bound a context paragraph and are skipped.     |
+
+Run =M-x customize-group RET word-extract RET= to see the full set with
+documentation.
+
+* Finding book ideas workflow
+
+You suspect you described several book ideas across the month but never tagged
+them. You run =M-x word-extract-range=, give the start and end of September, and
+the word =book=. The package searches the log root, keeps the dated files in
+range even when they fall in two monthly subfolders, finds every prose mention
+of =book=, skips the headings and =\index= entries, and collects each mention
+with its paragraph of context in date order. Press =C-c C-w= to copy the
+passages, or run the command with a prefix argument to drop them into an Org
+file where you can promote the promising ideas into projects.
+
+* Development
+
+#+CAPTION: Make targets.
+#+ATTR_LATEX: :booktabs t :center t
+| Target          | What it does                                               |
+|-----------------+------------------------------------------------------------|
+| =make compile=  | Byte-compile, treating every warning as an error.          |
+| =make test=     | Run the ERT test suite in batch.                           |
+| =make info=     | Build the Info manual from the Texinfo source.             |
+| =make checkdoc= | Run checkdoc on the source.                                |
+| =make all=      | Compile, test, and build the manual.                       |
+| =make clean=    | Remove the build products.                                 |
+
+The tests live in =test/word-extract-tests.el= and read two fixture files under
+=test/fixtures/=. The date tests bind the clock to a fixed day, so they stay
+deterministic.
+
+* The extract family
+
+=index-extract= pulls the passage below an =\index{key}= tag. =list-extract=
+consolidates =itemize= and =enumerate= lists. =word-extract= retrieves the prose
+around a plain word when you did not tag it. The three share their
+file-selection commands, their date handling, their results buffer, and their
+Org output.
+
+* License
+
+word-extract is free software, released under the GNU General Public License
+version 3 or later. See the file [[file:LICENSE][LICENSE]] for the full text.
